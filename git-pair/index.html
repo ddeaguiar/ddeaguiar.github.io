@@ -1,0 +1,364 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Configure Git Pairs with Magit &#8212; Software in Context  documentation</title>
+    
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="author" title="About these documents" href="../about/" />
+    <link rel="index" title="Index" href="../genindex/" />
+    <link rel="search" title="Search" href="../search/" />
+  
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  
+  
+  <link href="True" rel="stylesheet">
+  
+  <style type="text/css">
+    ul.ablog-archive {list-style: none; overflow: auto; margin-left: 0px}
+    ul.ablog-archive li {float: left; margin-right: 5px; font-size: 80%}
+    ul.postlist a {font-style: italic;}
+    ul.postlist-style-disc {list-style-type: disc;}
+    ul.postlist-style-none {list-style-type: none;}
+    ul.postlist-style-circle {list-style-type: circle;}
+  </style>
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="configure-git-pairs-with-magit">
+<h1>Configure Git Pairs with Magit<a class="headerlink" href="#configure-git-pairs-with-magit" title="Permalink to this headline">¶</a></h1>
+<p>Like me, you&#8217;ve probably used a git pair script at some point. There
+are a number of such scripts out there <a class="footnote-reference" href="#f1" id="id1">[1]</a> and they
+all work the same way &#8211; creating a local git config with the pair
+author information.</p>
+<p>While I used to be an avid user of the git cli, that&#8217;s changed since I
+switched to Magit. Unfortunately, I still need to do so when I want to
+setup my git pairing session. I decided to change that, partly to keep
+me from having to switch out of emacs but also as an exercise to
+improve my elisp chops.</p>
+<p>Here are my requirements:</p>
+<ol class="arabic simple">
+<li>Only override the commit author, not the committer.</li>
+<li>A single command to add the author override through the mini-buffer.</li>
+<li>A single command to remove the author override.</li>
+<li>A single command to toggle the author override.</li>
+<li>Persist the override across buffers.</li>
+<li>The overridden author value must be visible in the Magit commit popup.</li>
+</ol>
+<p>After some code spelunking, I found that Magit exposes <a class="footnote-reference" href="#f2" id="id2">[2]</a> the variable
+<code class="docutils literal"><span class="pre">magit-commit-arguments</span></code>, defined in <code class="docutils literal"><span class="pre">git-commit.el</span></code>, which holds
+a list of strings representing commit arguments. While it is
+customizable, my requirements call for a user experience that&#8217;s little
+more dynamic than setting an emacs custom variable. But, by using this
+variable, I&#8217;ll satisfy requirements <code class="docutils literal"><span class="pre">1</span></code>, <code class="docutils literal"><span class="pre">5</span></code> and <code class="docutils literal"><span class="pre">6</span></code>. Time to
+write some code to manipulate it!</p>
+<p>First I&#8217;ll create a function named <code class="docutils literal"><span class="pre">my/git-set-author</span></code> that
+let&#8217;s me add an <code class="docutils literal"><span class="pre">--author</span></code> commit argument.</p>
+<div class="highlight-elisp"><div class="highlight"><pre><span></span><span class="p">(</span><span class="nb">defun</span> <span class="nv">my/git-set-author</span> <span class="p">(</span><span class="nv">author</span><span class="p">)</span>
+ <span class="s">&quot;Sets the &#39;--author&#39; argument to the input author.&quot;</span>
+ <span class="p">(</span><span class="nb">when</span> <span class="p">(</span><span class="nv">not</span> <span class="p">(</span><span class="nv">string=</span> <span class="s">&quot;&quot;</span> <span class="nv">author</span><span class="p">))</span>
+   <span class="p">(</span><span class="nv">add-to-list</span> <span class="ss">&#39;magit-commit-arguments</span> <span class="p">(</span><span class="nf">concat</span> <span class="s">&quot;--author=&quot;</span> <span class="nv">author</span><span class="p">))</span>
+   <span class="p">(</span><span class="nv">minibuffer-message</span> <span class="p">(</span><span class="nf">concat</span> <span class="s">&quot;Author overridden with &#39;&quot;</span> <span class="nv">author</span> <span class="s">&quot;&#39;&quot;</span><span class="p">))))</span>
+</pre></div>
+</div>
+<p>This works but it&#8217;s not interactive, meaning it can&#8217;t be invoked from
+the minibuffer, and I won&#8217;t get prompt for input. It&#8217;s a good start,
+though so I&#8217;ll add another function that fills in the gaps.</p>
+<div class="highlight-elisp"><div class="highlight"><pre><span></span><span class="p">(</span><span class="nb">defun</span> <span class="nv">my/git-override-author</span> <span class="p">()</span>
+ <span class="s">&quot;Activates a git commit author override using the input author.&quot;</span>
+ <span class="p">(</span><span class="k">interactive</span><span class="p">)</span>
+ <span class="p">(</span><span class="k">let</span> <span class="p">((</span><span class="nv">author</span> <span class="p">(</span><span class="nf">read-string</span> <span class="s">&quot;i.e., A U Thor &lt;author@example.com&gt;: &quot;</span>
+               <span class="nv">my/magit-gc-override-author</span><span class="p">)))</span>
+   <span class="p">(</span><span class="nv">my/git-set-author</span> <span class="nv">author</span><span class="p">)))</span>
+</pre></div>
+</div>
+<p>The function <code class="docutils literal"><span class="pre">my/git-override-author</span></code> <em>is</em> interactive and prompts
+me with a message that&#8217;s a convenient reminder of the <code class="docutils literal"><span class="pre">--author</span></code>
+format. This satisfies requirement <code class="docutils literal"><span class="pre">2</span></code>. Now that I can set it, I
+need to be able to remove it. The function,
+<code class="docutils literal"><span class="pre">my/git-remove-author-override</span></code> will do that.</p>
+<div class="highlight-elisp"><div class="highlight"><pre><span></span><span class="p">(</span><span class="nb">defun</span> <span class="nv">my/git-remove-author-override</span> <span class="p">()</span>
+  <span class="s">&quot;Removes the &#39;--author&#39; commit argument.&quot;</span>
+  <span class="p">(</span><span class="k">interactive</span><span class="p">)</span>
+  <span class="p">(</span><span class="k">setq</span> <span class="nv">magit-commit-arguments</span>
+        <span class="p">(</span><span class="nv">remove-if</span> <span class="p">(</span><span class="nb">lambda</span> <span class="p">(</span><span class="nv">s</span><span class="p">)</span> <span class="p">(</span><span class="nf">string-match</span> <span class="s">&quot;--author&quot;</span> <span class="nv">s</span><span class="p">))</span>
+                   <span class="nv">magit-commit-arguments</span><span class="p">))</span>
+  <span class="p">(</span><span class="nv">minibuffer-message</span> <span class="s">&quot;Author override removed.&quot;</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>Great, now I can add and remove overrides! That checks off requirement
+<code class="docutils literal"><span class="pre">3</span></code>. Time to add override toggling. To do that I&#8217;ll define the
+variable <code class="docutils literal"><span class="pre">my/magit-gc-override-author</span></code> to persist the author
+override. I can then update <code class="docutils literal"><span class="pre">my/git-override-author</span></code> to use it as
+follows:</p>
+<div class="highlight-elisp"><div class="highlight"><pre><span></span><span class="p">(</span><span class="nb">defun</span> <span class="nv">my/git-override-author</span> <span class="p">()</span>
+  <span class="s">&quot;Activates a git commit author override using the input author.&quot;</span>
+  <span class="p">(</span><span class="k">interactive</span><span class="p">)</span>
+  <span class="p">(</span><span class="k">let</span> <span class="p">((</span><span class="nv">author</span> <span class="p">(</span><span class="nf">read-string</span> <span class="s">&quot;i.e., A U Thor &lt;author@example.com&gt;: &quot;</span> <span class="nv">my/magit-gc-override-author</span><span class="p">)))</span>
+<span class="hll">    <span class="p">(</span><span class="k">setq</span> <span class="nv">my/magit-gc-override-author</span> <span class="nv">author</span><span class="p">)</span>
+</span>    <span class="p">(</span><span class="nv">my/git-set-author</span> <span class="nv">author</span><span class="p">)))</span>
+</pre></div>
+</div>
+<p>Now I can implement <code class="docutils literal"><span class="pre">my/git-author-toggle</span></code> to check of requirement <code class="docutils literal"><span class="pre">4</span></code>.</p>
+<div class="highlight-elisp"><div class="highlight"><pre><span></span><span class="p">(</span><span class="nb">defun</span> <span class="nv">my/git-author-toggle</span> <span class="p">()</span>
+  <span class="s">&quot;Toggles the git commit author override.&quot;</span>
+  <span class="p">(</span><span class="k">interactive</span><span class="p">)</span>
+  <span class="p">(</span><span class="k">if</span> <span class="p">(</span><span class="nv">find-if</span> <span class="p">(</span><span class="nb">lambda</span> <span class="p">(</span><span class="nv">s</span><span class="p">)</span> <span class="p">(</span><span class="nf">string-match</span> <span class="s">&quot;--author&quot;</span> <span class="nv">s</span><span class="p">))</span> <span class="nv">magit-commit-arguments</span><span class="p">)</span>
+    <span class="p">(</span><span class="nv">my/git-remove-author-override</span><span class="p">)</span>
+    <span class="p">(</span><span class="nv">my/git-set-author</span> <span class="nv">my/magit-gc-override-author</span><span class="p">)))</span>
+</pre></div>
+</div>
+<p>Finally, I&#8217;ll tie it all together through some keybindings that get
+set when <em>Magit</em> is initialized. I really like <code class="docutils literal"><span class="pre">use-package</span></code> for
+things like this.</p>
+<div class="highlight-elisp"><div class="highlight"><pre><span></span><span class="p">(</span><span class="nb">use-package</span> <span class="nv">magit</span>
+  <span class="nb">:bind</span> <span class="p">((</span><span class="s">&quot;C-c C-p&quot;</span> <span class="o">.</span> <span class="nv">my/git-override-author</span><span class="p">)</span>
+         <span class="p">(</span><span class="s">&quot;C-c C-u&quot;</span> <span class="o">.</span> <span class="nv">my/git-remove-author-override</span><span class="p">)</span>
+         <span class="p">(</span><span class="s">&quot;C-c C-t&quot;</span> <span class="o">.</span> <span class="nv">my/git-author-toggle</span><span class="p">)))</span>
+
+<span class="c1">;; Require &#39;magit-commit otherwise magit-commit-arguments won&#39;t be</span>
+<span class="c1">;; initialized until you first try to commit something.</span>
+<span class="p">(</span><span class="nb">require</span> <span class="ss">&#39;magit-commit</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>In the future I&#8217;ll probably add some niceties like support for
+selecting known pairs and support for pair initials but this is good
+enough for now.</p>
+<p>The full implementation can be found in my emacs <a class="reference external" href="https://github.com/ddeaguiar/dotfiles/blob/e860470f47857d13798ca62f0dd5f9d5347f1872/emacs/.emacs.d/personal/init.el#L580">config</a>
+<a class="footnote-reference" href="#f3" id="id3">[3]</a> <a class="footnote-reference" href="#f4" id="id4">[4]</a>. I&#8217;ve got some other goodies in there but, as you peruse my
+config, keep in mind that I use the Prelude Emacs distribution.</p>
+<p>Cheers!</p>
+<p>/Dan</p>
+<p class="rubric">Footnotes</p>
+<table class="docutils footnote" frame="void" id="f1" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id1">[1]</a></td><td>Here are a few:
+<a class="reference external" href="https://github.com/pivotal/git_scripts#git-pair-commit">pivotal/git_scripts</a>,
+<a class="reference external" href="https://github.com/ryanbriones/git-pair">ryanbriones/git-pair</a>,
+<a class="reference external" href="https://github.com/peterjwest/git-pair">peterjwest/git-pair</a>.</td></tr>
+</tbody>
+</table>
+<table class="docutils footnote" frame="void" id="f2" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id2">[2]</a></td><td>Check out the <a class="reference external" href="https://github.com/magit/magit/blob/dc7aa5ca782fd15910ea87b25733f74bde66ecaf/lisp/magit-commit.el#L46">source</a>.</td></tr>
+</tbody>
+</table>
+<table class="docutils footnote" frame="void" id="f3" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id3">[3]</a></td><td>I suppose this goes without saying, but <strong>never</strong> lift config without understanding what it does first!</td></tr>
+</tbody>
+</table>
+<table class="docutils footnote" frame="void" id="f4" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id4">[4]</a></td><td>I&#8217;m constantly mucking with my Emacs configuration. It&#8217;s like a
+virtual garden that requires constant tending.</td></tr>
+</tbody>
+</table>
+</div>
+
+  <div class="section">
+  
+    
+
+
+<div class="section">
+  <span style="float: left;">
+  
+  </span>
+  <span>&nbsp;</span>
+  <span style="float: right;">
+  
+</div>
+
+  
+  
+  </div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../">Software in Context</a></h1>
+
+
+
+
+
+
+
+
+
+  
+  
+  <h2>
+  
+  <i class="fa fa-calendar"></i>
+    Mar 25, 2017
+  
+  </h2>
+
+  <ul>
+    
+
+  
+  <li><i class="fa-fw fa fa-user"></i>
+    
+      
+      <a href="../blog/author/daniel-de-aguiar/">Daniel De Aguiar</a>
+      
+    </li>
+  
+
+  
+
+  
+
+  
+
+  
+  <li><i class="fa-fw fa fa-tags"></i>
+      
+    
+      
+      <a href="../blog/tag/emacs/">emacs</a>,
+      
+    
+      
+      <a href="../blog/tag/code/">code</a>
+      
+    </li>
+  
+  
+  <li>
+    <script type="text/javascript">
+    /* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+    var disqus_shortname = 'ddeaguiar'; // required: replace example with your forum shortname
+
+    /* * * DON'T EDIT BELOW THIS LINE * * */
+    (function () {
+    var s = document.createElement('script'); s.async = true;
+    s.type = 'text/javascript';
+    s.src = '//' + disqus_shortname + '.disqus.com/count.js';
+    (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+    }());
+    </script>
+    <i class="fa-fw fa fa-comments"></i>
+    <a href="#disqus_thread" data-disqus-identifier="/git-pair/"> </a>
+  </li>
+  
+  </ul>
+
+
+<h3>Navigation</h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../about/">About Daniel De Aguiar</a></li>
+</ul>
+
+
+  <h3><a href="../blog/">Recent Posts</a></h3>
+  <ul>
+    
+    
+  </ul>
+
+  <h3><a href="../blog/tag/">Tags</a></h3>
+  <style type="text/css">
+    ul.ablog-cloud {list-style: none; overflow: auto;}
+    ul.ablog-cloud li {float: left; height: 20pt; line-height: 18pt; margin-right: 5px;}
+    ul.ablog-cloud a {text-decoration: none; vertical-align: middle;}
+    li.ablog-cloud-1{font-size: 80%;}
+    li.ablog-cloud-2{font-size: 95%;}
+    li.ablog-cloud-3{font-size: 110%;}
+    li.ablog-cloud-4{font-size: 125%;}
+    li.ablog-cloud-5{font-size: 140%;}
+  </style>
+  <ul class="ablog-cloud">
+    
+      
+      <li class="ablog-cloud ablog-cloud-3">
+        <a href="../blog/tag/code/">code</a></li>
+      
+    
+      
+      <li class="ablog-cloud ablog-cloud-3">
+        <a href="../blog/tag/emacs/">emacs</a></li>
+      
+    
+  </ul>
+
+  <h3><a href="../blog/archive/">Archives</a></h3>
+  <ul>
+  
+    
+    <li><a href="../blog/2017/">2017 (1)</a></li>
+    
+  
+  </ul>
+
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../search/" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Daniel De Aguiar.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.5.3</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+      |
+      <a href="../_sources/git-pair.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
