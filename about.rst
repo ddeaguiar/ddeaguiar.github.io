@@ -1,0 +1,18 @@
+.. _about:
+
+About Daniel De Aguiar
+============================
+
+I specialize in helping companies solve hard business problems through
+technology and process improvements.
+
+Expertise in Web Architecture, Systems Integration and Process
+Improvement. Demonstrated capability in working with and optimizing
+polyglot architectures. Experience working with a variety of
+programming languages spanning multiple programming
+paradigms. Particularly interested in leveraging the JVM as an
+application platform using alternative Java technologies such as
+Clojure.
+
+- `LinkedIn <https://www.linkedin.com/in/danieldeaguiar/>`_
+- `Github <https://github.com/ddeaguiar>`_
