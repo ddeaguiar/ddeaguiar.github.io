@@ -1,4 +1,4 @@
-Software In Context
+Software in Context
 ===================
 
 Musings on software development and technology with a special interest in Clojure.

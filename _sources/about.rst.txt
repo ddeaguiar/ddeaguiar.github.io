@@ -15,4 +15,5 @@ application platform using alternative Java technologies such as
 Clojure.
 
 - `LinkedIn <https://www.linkedin.com/in/danieldeaguiar/>`_
-- `Github <https://github.com/ddeaguiar>`_
+- `@ddeaguiar <https://github.com/ddeaguiar>`_ on GitHub.
+- `@ddeaguiar <https://twitter.com/ddeaguiar>`_ on Twitter.
